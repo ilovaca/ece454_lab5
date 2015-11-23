@@ -19,7 +19,7 @@ game_of_life (char* outboard,
 	      const int ncols,
 	      const int gens_max)
 {
-	if (nrows <= 32 && ncols <= 32)
+	if (nrows < 32 && ncols < 32)
 	  	return sequential_game_of_life (outboard, inboard, nrows, ncols, gens_max);
 	else 
 		return parallel_game_of_life(outboard, inboard, nrows, ncols, gens_max);
