@@ -5,7 +5,7 @@ include Makefile.include
 
 LDFLAGS += -lm 
 CPPFLAGS += "-DCOMPILER=\"$(CC)\"" "-DFLAGS=\"$(COPTFLAGS)\""
-
+PTHREAD_ENABLE = -lpthread -pthread
 #
 # Include the realtime clock library, if required.
 #

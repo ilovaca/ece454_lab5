@@ -58,8 +58,8 @@ sequential_game_of_life (char* outboard,
 
             }
         }
-        SWAP_BOARDS( outboard, inboard );
 
+        SWAP_BOARDS( outboard, inboard );
     }
     /* 
      * We return the output board, so that we know which one contains
