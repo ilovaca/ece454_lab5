@@ -4,11 +4,25 @@
  ****************************************************************************/
 #include "life.h"
 #include "util.h"
-
+#include <pthread.h>
+#define NUM_THREADS 8
 /*****************************************************************************
  * Helper function definitions
  ****************************************************************************/
+struct thread_argument_t
+{
+			char* outboard, 
+			 char* inboard,
+			  int nrows,
+			  int ncols,
+			  int gens_max,
+			 int ith_slice,
+};
 
+worker_fuction_by_rows(struct thread_argument_t* arg)
+{
+	
+}
 /*****************************************************************************
  * Game of life implementation
  ****************************************************************************/
@@ -22,7 +36,10 @@ game_of_life (char* outboard,
 	if (nrows < 32 && ncols < 32)
 	  	return sequential_game_of_life (outboard, inboard, nrows, ncols, gens_max);
 	else 
+	{// bigger sized board, we use 8 threads 
+		pthread_t worker_threads[NUM_THREADS];
 		return parallel_game_of_life(outboard, inboard, nrows, ncols, gens_max);
+	}
 }
 
 
@@ -31,9 +48,30 @@ parallel_game_of_life (char* outboard,
 			 char* inboard,
 			 const int nrows,
 			 const int ncols,
-			 const int gens_max){
+			 const int gens_max
+			 pthread_t * worker_threads){
 
-	
+	const int LDA = *****;
+	for (curgen = 0; curgen < gens_max; curgen++) {
+
+		// start parallel code here
+		/*Thought 1: slice the board by rows, i.e. horizontally*/
+		//fire off the threads
+	struct thread_argument_t* args = malloc(sizeof(struct thread_argument_t));
+		args->outboard = outboard; 
+		args->inboard = inboard;
+			args-> nrows =  nrows;
+			args-> ncols = ncols;
+			args->gens_max =  gens_max;
+			args->ith_slice = ith_slice;
+		
+		for (int i = 0; i < NUM_THREADS; ++i){
+			// initialize the thread argument
+			pthread_create(&(worker_threads[i],NULL, worker_fuction_by_rows,));
+			worker_fuction_by_rows();
+		}
+
+	}
 }
 
 
