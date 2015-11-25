@@ -8,6 +8,17 @@
  * the final board; that pointer will be equal either to outboard or to
  * inboard (but you don't know which).
  */
+
+ int LDA;
+#define BOARD(__board, __i, __j)  (__board[(__i) + LDA*(__j)])
+#define NUM_THREADS 8
+
+#define SWAP_BOARDS(b1, b2)  do { \
+  char* temp = b1; \
+  b1 = b2; \
+  b2 = temp; \
+} while(0)
+
 char *
         game_of_life(char *outboard,
                      char *inboard,

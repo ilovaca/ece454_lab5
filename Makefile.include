@@ -21,7 +21,7 @@ USE_GCC=1
 ifeq ($(USE_GCC),1)
 	CC = gcc
 	LINKER = gcc
-	COPTFLAGS = -Wall -g -O2 -std=c99 
+	COPTFLAGS = -Wall -g -O2 -std=gnu99 -lpthread -pthread
 else
 	CC = icc
 	LINKER = icc
@@ -29,7 +29,7 @@ else
 endif
 
 CPPFLAGS += -D$(TIMER_TYPE) 
-CFLAGS = $(COPTFLAGS) -lpthread -pthread
+CFLAGS = $(COPTFLAGS) 
 
 DYLIB_SUFFIX=so
 DYLIB_CREATE_FLAG=-shared
