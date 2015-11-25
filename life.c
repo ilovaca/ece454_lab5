@@ -7,20 +7,59 @@
 #include <pthread.h>
 
 #define NUM_THREADS 8
+
+#define SWAP_BOARDS(b1, b2)  do { \
+  char* temp = b1; \
+  b1 = b2; \
+  b2 = temp; \
+} while(0)
+
+#define BOARD(__board, __i, __j)  (__board[(__i) + LDA*(__j)])
+
+
 /*****************************************************************************
  * Helper function definitions
  ****************************************************************************/
 struct thread_argument_t {
-    char *outboard,
-    char *inboard,
-    int nrows,
-    int ncols,
-    int gens_max,
-    int ith_slice,
+    char *outboard;
+    char *inboard;
+    int nrows;
+    int ncols;
+    int ith_slice;
 };
 
-worker_fuction_by_rows(struct thread_argument_t *arg) {
 
+
+void* worker_fuction_by_rows(void *args) {
+	struct thread_argument_t* arg = (struct thread_argument_t*)arg;
+	int ith_slice = arg->ith_slice;
+	int slice_size = arg->nrows / NUM_THREADS;
+	int nrows = arg->nrows;
+	int ncols = arg->ncols;
+	char *outboard = arg->outboard;
+	char *inboard = arg->inboard;
+	for (int i = ith_slice * slice_size; i < (ith_slice + 1) * slice_size; ++i){
+		for (int j = 0; j < arg->nrows; ++j) {
+				const int inorth = mod(i - 1, nrows);
+                const int isouth = mod(i + 1, nrows);
+                const int jwest = mod(j - 1, ncols);
+                const int jeast = mod(j + 1, ncols);
+
+                const char neighbor_count =
+                        BOARD(inboard, inorth, jwest) +
+                        BOARD(inboard, inorth, j) +
+                        BOARD(inboard, inorth, jeast) +
+                        BOARD(inboard, i, jwest) +
+                        BOARD(inboard, i, jeast) +
+                        BOARD(inboard, isouth, jwest) +
+                        BOARD(inboard, isouth, j) +
+                        BOARD(inboard, isouth, jeast);
+
+            BOARD(outboard, i, j) = alivep(neighbor_count, BOARD(inboard, i, j));
+
+		}
+	}
+	return NULL;
 }
 
 /*****************************************************************************
@@ -34,51 +73,53 @@ game_of_life(char *outboard,
              const int gens_max) {
     if (nrows < 32 && ncols < 32)
         return sequential_game_of_life(outboard, inboard, nrows, ncols, gens_max);
-    else {// bigger sized board, we use 8 threads
+    else {
         pthread_t worker_threads[NUM_THREADS];
-        return parallel_game_of_life(outboard, inboard, nrows, ncols, gens_max);
+        return parallel_game_of_life(outboard, inboard, nrows, ncols, gens_max, worker_threads);
     }
 }
 
 
-char *
-parallel_game_of_life(char *outboard,
+char * parallel_game_of_life(char *outboard,
                       char *inboard,
                       const int nrows,
                       const int ncols,
-                      const int gens_max
+                      const int gens_max,
                       pthread_t *worker_threads) {
+	// barrier var
+	pthread_barrier_t barrier;
+	pthread_barrier_init(&barrier, NULL, NUM_THREADS);
+    const int LDA = nrows;
+    for (int curgen = 0; curgen < gens_max; ++curgen) {
 
-    const int LDA = *****;
-    for (curgen = 0; curgen < gens_max; curgen++) {
-
-        // start parallel code here
         /*Thought 1: slice the board by rows, i.e. horizontally*/
-        //fire off the threads
-        struct thread_argument_t *args = malloc(sizeof(struct thread_argument_t));
-        args->outboard = outboard;
-        args->inboard = inboard;
-        args->nrows = nrows;
-        args->ncols = ncols;
-        args->gens_max = gens_max;
-        args->ith_slice = ith_slice;
+        // initialize the thread arguments
+        // struct thread_argument_t *args = malloc(sizeof(struct thread_argument_t));
+    	struct thread_argument_t args[NUM_THREADS];
 
         for (int i = 0; i < NUM_THREADS; ++i) {
-            // initialize the thread argument
-            pthread_create(&(worker_threads[i], NULL, worker_fuction_by_rows,));
-            worker_fuction_by_rows();
+	        args[i].outboard = outboard;
+	        args[i].inboard = inboard;
+	        args[i].nrows = nrows;
+	        args[i].ncols = ncols;	
+        	args[i].ith_slice = i;
+            pthread_create(&worker_threads[i], NULL, worker_fuction_by_rows, &args[i]);
         }
-
+        // barrier that makes sure every worker thread has done their slice of work
+        pthread_barrier_wait(&barrier); 
+        // can swap the board now
+        SWAP_BOARDS(outboard, inboard);
     }
+    return inboard;
 }
 
 
-char *
-sequential_game_of_life_optimized(char *outboard,
-                                  char *inboard,
-                                  const int nrows,
-                                  const int ncols,
-                                  const int gens_max) {
+char*
+sequential_game_of_life(char *outboard,
+                        char *inboard,
+                        const int nrows,
+                        const int ncols,
+                        const int gens_max) {
     /* HINT: in the parallel decomposition, LDA may not be equal to
        nrows! */
     const int LDA = nrows;
@@ -95,18 +136,29 @@ sequential_game_of_life_optimized(char *outboard,
                 const int jeast = mod(j + 1, ncols);
 
                 const char neighbor_count =
-                        BOARD(inboard, inorth, jwest) +
-                        BOARD(inboard, inorth, j) +
-                        BOARD(inboard, inorth, jeast) +
-                        BOARD(inboard, i, jwest) +
-                        BOARD(inboard, i, jeast) +
-                        BOARD(inboard, isouth, jwest) +
-                        BOARD(inboard, isouth, j) +
-                        BOARD(inboard, isouth, jeast);
+                        BOARD (inboard, inorth, jwest) +
+                        BOARD (inboard, inorth, j) +
+                        BOARD (inboard, inorth, jeast) +
+                        BOARD (inboard, i, jwest) +
+                        BOARD (inboard, i, jeast) +
+                        BOARD (inboard, isouth, jwest) +
+                        BOARD (inboard, isouth, j) +
+                        BOARD (inboard, isouth, jeast);
 
-                BOARD(outboard, i, j) = alivep(neighbor_count, BOARD(inboard, i, j));
+                BOARD(outboard, i, j) = alivep(neighbor_count, BOARD (inboard, i, j));
 
             }
         }
+
         SWAP_BOARDS(outboard, inboard);
     }
+    /* 
+     * We return the output board, so that we know which one contains
+     * the final result (because we've been swapping boards around).
+     * Just be careful when you free() the two boards, so that you don't
+     * free the same one twice!!! 
+     */
+    return inboard;
+}
+
+
