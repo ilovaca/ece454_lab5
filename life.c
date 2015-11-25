@@ -23,14 +23,16 @@ struct thread_argument_t {
 
 
 void* worker_fuction_by_rows(void *args) {
-  struct thread_argument_t* arg = (struct thread_argument_t*)args;
+  struct thread_argument_t *arg = (struct thread_argument_t*)args;
   int ith_slice = arg->ith_slice;
   int slice_size = arg->nrows / NUM_THREADS;
   int nrows = arg->nrows;
   int ncols = arg->ncols;
   char *outboard = arg->outboard;
   char *inboard = arg->inboard;
+
   for (int i = ith_slice * slice_size; i < (ith_slice + 1) * slice_size; ++i){
+
     for (int j = 0; j < arg->nrows; ++j) {
         		const int inorth = mod(i - 1, nrows);
                 const int isouth = mod(i + 1, nrows);
@@ -100,10 +102,14 @@ char * parallel_game_of_life(char *outboard,
         }
         // barrier that makes sure every worker thread has done their slice of work
         // pthread_barrier_wait(&barrier); 
-        
+        for (int i = 0; i < NUM_THREADS; ++i) {
+        	pthread_join(worker_threads[i],NULL);
+        }
+
         // can swap the board now
         SWAP_BOARDS(outboard, inboard);
     }
+
     return inboard;
 }
 
