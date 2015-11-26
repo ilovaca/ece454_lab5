@@ -132,6 +132,11 @@ main(int argc, char *argv[]) {
      */
     final_board = game_of_life(outboard, inboard, nrows, ncols, gens_max);
 
+    if(final_board == NULL) {
+	fprintf(stderr, "Boardsize too large! Aborting game of life...\n");
+	exit(EXIT_FAILURE);
+    }
+
     /* Print (or save, depending on command-line argument <outfilename>)
        the final board */
     save_board(output, final_board, nrows, ncols);

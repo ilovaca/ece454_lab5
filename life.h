@@ -19,6 +19,15 @@
   b2 = temp; \
 } while(0)
 
+#define ALIVE(c) ((c >> 4) & 1)
+#define SPAWN(c) (c |= (1 << (4)))
+#define KILL(c) (c &= ~(1 << (4)))
+#define TOKILL(c) ((c < (char)0x12 || cell > (char)0x13))
+#define TOSPAWN(c) (c == (char)0x3)
+#define N_INC(__board, __i, __j) (BOARD(__board, __i, __j) += 1)
+#define N_DEC(__board, __i, __j) (BOARD(__board, __i, __j) -= 1)
+
+
 char *
         game_of_life(char *outboard,
                      char *inboard,

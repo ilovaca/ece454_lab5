@@ -1,6 +1,8 @@
 #ifndef _util_h
 #define _util_h
 
+#include <string.h>
+
 /**
  * C's mod ('%') operator is mathematically correct, but it may return
  * a negative remainder even when both inputs are nonnegative.  This
