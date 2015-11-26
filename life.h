@@ -11,7 +11,7 @@
 
  int LDA;
 #define BOARD(__board, __i, __j)  (__board[(__i) + LDA*(__j)])
-#define NUM_THREADS 8
+#define NUM_THREADS 8 
 
 #define SWAP_BOARDS(b1, b2)  do { \
   char* temp = b1; \
@@ -54,5 +54,12 @@ char *
                               const int ncols,
                               const int gens_max,
                               pthread_t * thread);
+
+        char* parallel_game_of_life_gen(char *outboard,
+                      char *inboard,
+                      const int nrows,
+                      const int ncols,
+                      const int gens_max,
+                      pthread_t *worker_threads) ;
 
 #endif /* _life_h */

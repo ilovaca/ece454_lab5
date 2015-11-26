@@ -4,7 +4,9 @@
  ****************************************************************************/
 #include "life.h"
 #include "util.h"
+#include <math.h>
 #include <pthread.h>
+ #include <stdio.h>
 
 
 
@@ -17,10 +19,89 @@ struct thread_argument_t {
     int nrows;
     int ncols;
     int ith_slice;
+    int jth_slice;
+    int gens_max;
+    pthread_barrier_t *barrier;
 };
+
 
 void do_cell(char *outboard, char *inboard, int i, int j, const int LDA);
 void board_init(char *board, int size);
+
+// apply encoding to the board
+void preprocessing_board(char* inboard, char* outboard, int nrows, int ncols) {
+	for (int i = 0; i < nrows; ++i) {
+		for (int j = 0; j < ncols; ++j) {
+				const int inorth = mod(i - 1, nrows);
+                const int isouth = mod(i + 1, nrows);
+                const int jwest = mod(j - 1, ncols);
+                const int jeast = mod(j + 1, ncols);
+
+                const char neighbor_count =
+                        BOARD(inboard, inorth, jwest) +
+                        BOARD(inboard, inorth, j) +
+                        BOARD(inboard, inorth, jeast) +
+                        BOARD(inboard, i, jwest) +
+                        BOARD(inboard, i, jeast) +
+                        BOARD(inboard, isouth, jwest) +
+                        BOARD(inboard, isouth, j) +
+                        BOARD(inboard, isouth, jeast);
+
+                        char encoding = 0;
+                        // the alive is either 0 or 1
+                        char alive = BOARD(inboard, i,j);
+                        // first encode the bit 5 with alive or dead 
+                        encoding = encoding | (alive << 4);
+                        // then encode its neighbor count, which is a number
+                        // between 0 and 8. This fits in the lower 4 bits 
+                        encoding = encoding | neighbor_count;
+
+              			BOARD(inboard,i,j) = encoding;
+		}
+	}
+	memmove(outboard, inboard, nrows * ncols * sizeof(char));
+}
+
+
+// Approach 2: we partition the board into blocks
+void* worker_fuction_by_blocks(void *args) {
+
+	struct thread_argument_t *arg = (struct thread_argument_t*)args;
+  char *outboard = arg->outboard;
+  char *inboard = arg->inboard;
+  int nrows = arg->nrows;
+  int ncols = arg->ncols;
+  int ith_slice = arg->ith_slice / (int)sqrt(NUM_THREADS);
+  int jth_slice = arg->ith_slice % (int)sqrt(NUM_THREADS);
+  int slice_size = arg->nrows / sqrt(NUM_THREADS);
+
+   for (int i = ith_slice * slice_size; i < (ith_slice + 1) * slice_size; ++i){
+
+    for (int j = jth_slice * slice_size; j < (jth_slice + 1) * slice_size; ++j) {
+
+				const int inorth = mod(i - 1, nrows);
+                const int isouth = mod(i + 1, nrows);
+                const int jwest = mod(j - 1, ncols);
+                const int jeast = mod(j + 1, ncols);
+
+                const char neighbor_count =
+                        BOARD(inboard, inorth, jwest) +
+                        BOARD(inboard, inorth, j) +
+                        BOARD(inboard, inorth, jeast) +
+                        BOARD(inboard, i, jwest) +
+                        BOARD(inboard, i, jeast) +
+                        BOARD(inboard, isouth, jwest) +
+                        BOARD(inboard, isouth, j) +
+                        BOARD(inboard, isouth, jeast);
+
+            BOARD(outboard, i, j) = alivep(neighbor_count, BOARD(inboard, i, j));
+
+    }
+  }
+  return NULL;
+}
+
+
 
 void* worker_fuction_by_rows(void *args) {
   struct thread_argument_t *arg = (struct thread_argument_t*)args;
@@ -35,6 +116,39 @@ void* worker_fuction_by_rows(void *args) {
 
     for (int j = 0; j < arg->nrows; ++j) {
 	do_cell(outboard, inboard, i, j, nrows);
+    }
+  }
+  return NULL;
+}
+void* worker_fuction_by_rows_encoding(void *args) {
+  struct thread_argument_t *arg = (struct thread_argument_t*)args;
+  int ith_slice = arg->ith_slice;
+  int slice_size = arg->nrows / NUM_THREADS;
+  int nrows = arg->nrows;
+  int ncols = arg->ncols;
+  char *outboard = arg->outboard;
+  char *inboard = arg->inboard;
+
+  for (int i = ith_slice * slice_size; i < (ith_slice + 1) * slice_size; ++i){
+
+    for (int j = 0; j < arg->nrows; ++j) {
+        		const int inorth = mod(i - 1, nrows);
+                const int isouth = mod(i + 1, nrows);
+                const int jwest = mod(j - 1, ncols);
+                const int jeast = mod(j + 1, ncols);
+
+                const char neighbor_count =
+                        BOARD(inboard, inorth, jwest) +
+                        BOARD(inboard, inorth, j) +
+                        BOARD(inboard, inorth, jeast) +
+                        BOARD(inboard, i, jwest) +
+                        BOARD(inboard, i, jeast) +
+                        BOARD(inboard, isouth, jwest) +
+                        BOARD(inboard, isouth, j) +
+                        BOARD(inboard, isouth, jeast);
+
+            BOARD(outboard, i, j) = alivep(neighbor_count, BOARD(inboard, i, j));
+
     }
   }
   return NULL;
@@ -61,6 +175,74 @@ game_of_life(char *outboard,
     }
 }
 
+void *worker_fuction_by_gen (void *args) {
+	struct thread_argument_t *arg = (struct thread_argument_t*)args;
+  int ith_slice = arg->ith_slice;
+  int slice_size = arg->nrows / NUM_THREADS;
+  int nrows = arg->nrows;
+  int ncols = arg->ncols;
+  char *outboard = arg->outboard;
+  char *inboard = arg->inboard;
+  int gens_max = arg->gens_max;
+	for (int curgen = 0; curgen < gens_max; ++curgen) {
+
+	for (int i = ith_slice * slice_size; i < (ith_slice + 1) * slice_size; ++i){
+
+    for (int j = 0; j < arg->nrows; ++j) {
+        		const int inorth = mod(i - 1, nrows);
+                const int isouth = mod(i + 1, nrows);
+                const int jwest = mod(j - 1, ncols);
+                const int jeast = mod(j + 1, ncols);
+
+                const char neighbor_count =
+                        BOARD(inboard, inorth, jwest) +
+                        BOARD(inboard, inorth, j) +
+                        BOARD(inboard, inorth, jeast) +
+                        BOARD(inboard, i, jwest) +
+                        BOARD(inboard, i, jeast) +
+                        BOARD(inboard, isouth, jwest) +
+                        BOARD(inboard, isouth, j) +
+                        BOARD(inboard, isouth, jeast);
+
+            BOARD(outboard, i, j) = alivep(neighbor_count, BOARD(inboard, i, j));
+
+    		}	
+  		}
+
+  		pthread_barrier_wait(arg->barrier); Ones
+  		SWAP_BOARDS(outboard, inboard);
+	}
+	return NULL;
+}
+
+char* parallel_game_of_life_gen(char *outboard,
+                      char *inboard,
+                      const int nrows,
+                      const int ncols,
+                      const int gens_max,
+                      pthread_t *worker_threads) {
+	pthread_barrier_t barrier;
+  	pthread_barrier_init(&barrier, NULL, NUM_THREADS);
+  	LDA = nrows;
+  	struct thread_argument_t args[NUM_THREADS];
+
+        for (int i = 0; i < NUM_THREADS; ++i) {
+          args[i].outboard = outboard;
+          args[i].inboard = inboard;
+          args[i].nrows = nrows;
+          args[i].ncols = ncols;  
+          args[i].ith_slice = i;
+          args[i].barrier = &barrier;
+          args[i].gens_max = gens_max;
+            pthread_create(&worker_threads[i], NULL, worker_fuction_by_gen, &args[i]);
+        }
+		
+		for (int i = 0; i < NUM_THREADS; ++i) {
+        	pthread_join(worker_threads[i],NULL);
+        }
+        return inboard;
+
+}
 
 char * parallel_game_of_life(char *outboard,
                       char *inboard,
@@ -72,11 +254,11 @@ char * parallel_game_of_life(char *outboard,
     pthread_barrier_t barrier;
     pthread_barrier_init(&barrier, NULL, NUM_THREADS);
     // const int LDA = nrows;
-    LDA = nrows;
-    
-    board_init(inboard, nrows);
-    memmove(outboard, inboard, nrows*ncols*sizeof(char));
-    
+
+
+  LDA = nrows;
+  preprocessing_board(inboard, outboard, nrows, ncols);
+
     for (int curgen = 0; curgen < gens_max; ++curgen) {
 	
         /*Thought 1: slice the board by rows, i.e. horizontally*/
@@ -92,6 +274,15 @@ char * parallel_game_of_life(char *outboard,
 	    args[i].ith_slice = i;
             pthread_create(&worker_threads[i], NULL, worker_fuction_by_rows, &args[i]);
         }
+        // for (int i = 0; i < NUM_THREADS; ++i) {
+        //   	args[i].outboard = outboard;
+        //   	args[i].inboard = inboard;
+        //   	args[i].nrows = nrows;
+        //   	args[i].ncols = ncols;  
+        //   	args[i].ith_slice = i;
+        //     pthread_create(&worker_threads[i], NULL, worker_fuction_by_blocks, &args[i]);
+        // }
+        
         // barrier that makes sure every worker thread has done their slice of work
         // pthread_barrier_wait(&barrier); 
         for (int i = 0; i < NUM_THREADS; ++i) {
