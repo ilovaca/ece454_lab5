@@ -12,7 +12,9 @@
  */
 static inline int
 mod(int x, int m) {
-    return (x < 0) ? ((x % m) + m) : (x % m);
+    // return (x < 0) ? ((x % m) + m) : (x % m);
+    if (x < 0) return m + x;
+  return (x < m) ? x : x-m;
 }
 
 /**
@@ -24,5 +26,6 @@ alivep(char count, char state) {
     return (!state && (count == (char) 3)) ||
            (state && (count >= 2) && (count <= 3));
 }
+
 
 #endif /* _util_h */

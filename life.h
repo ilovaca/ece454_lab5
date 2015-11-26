@@ -11,7 +11,7 @@
 
  int LDA;
 #define BOARD(__board, __i, __j)  (__board[(__i) + LDA*(__j)])
-#define NUM_THREADS 8 
+#define NUM_THREADS 8
 
 #define SWAP_BOARDS(b1, b2)  do { \
   char* temp = b1; \
