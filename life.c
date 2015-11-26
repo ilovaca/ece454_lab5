@@ -209,7 +209,7 @@ void *worker_fuction_by_gen (void *args) {
     		}	
   		}
 
-  		pthread_barrier_wait(arg->barrier); Ones
+  		pthread_barrier_wait(arg->barrier); 
   		SWAP_BOARDS(outboard, inboard);
 	}
 	return NULL;
