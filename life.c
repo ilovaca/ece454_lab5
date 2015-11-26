@@ -103,7 +103,7 @@ void* worker_fuction_by_blocks(void *args) {
 
 
 
-void* worker_fuction_by_rows(void *args) {
+void* worker_fuction_by_rows_encoding(void *args) {
   struct thread_argument_t *arg = (struct thread_argument_t*)args;
   int ith_slice = arg->ith_slice;
   int slice_size = arg->nrows / NUM_THREADS;
@@ -115,12 +115,12 @@ void* worker_fuction_by_rows(void *args) {
   for (int i = ith_slice * slice_size; i < (ith_slice + 1) * slice_size; ++i){
 
     for (int j = 0; j < arg->nrows; ++j) {
-	do_cell(outboard, inboard, i, j, nrows);
+		do_cell(outboard, inboard, i, j, nrows);
     }
   }
   return NULL;
 }
-void* worker_fuction_by_rows_encoding(void *args) {
+void* worker_fuction_by_rows(void *args) {
   struct thread_argument_t *arg = (struct thread_argument_t*)args;
   int ith_slice = arg->ith_slice;
   int slice_size = arg->nrows / NUM_THREADS;
@@ -256,8 +256,10 @@ char * parallel_game_of_life(char *outboard,
     // const int LDA = nrows;
 
 
-  LDA = nrows;
-  preprocessing_board(inboard, outboard, nrows, ncols);
+  	LDA = nrows;
+	  // preprocessing_board(inboard, outboard, nrows, ncols);
+  	board_init(inboard, nrows);
+  	memmove(outboard, inboard, nrows * ncols * sizeof(char));
 
     for (int curgen = 0; curgen < gens_max; ++curgen) {
 	
@@ -272,7 +274,7 @@ char * parallel_game_of_life(char *outboard,
 	    args[i].nrows = nrows;
 	    args[i].ncols = ncols;  
 	    args[i].ith_slice = i;
-            pthread_create(&worker_threads[i], NULL, worker_fuction_by_rows, &args[i]);
+            pthread_create(&worker_threads[i], NULL, worker_fuction_by_rows_encoding, &args[i]);
         }
         // for (int i = 0; i < NUM_THREADS; ++i) {
         //   	args[i].outboard = outboard;
@@ -286,7 +288,7 @@ char * parallel_game_of_life(char *outboard,
         // barrier that makes sure every worker thread has done their slice of work
         // pthread_barrier_wait(&barrier); 
         for (int i = 0; i < NUM_THREADS; ++i) {
-	    pthread_join(worker_threads[i],NULL);
+	    	pthread_join(worker_threads[i],NULL);
         }
 	
         // can swap the board now
@@ -321,6 +323,7 @@ void do_cell(char *outboard, char *inboard, int i, int j, const int size) {
 	}
     }
     else {
+    	// this cell is
 	if(TOSPAWN(cell)) {
 	    SPAWN(BOARD(outboard, i, j));
 

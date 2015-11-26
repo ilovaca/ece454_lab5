@@ -55,7 +55,7 @@ char *
                               const int gens_max,
                               pthread_t * thread);
 
-        char* parallel_game_of_life_gen(char *outboard,
+char* parallel_game_of_life_gen(char *outboard,
                       char *inboard,
                       const int nrows,
                       const int ncols,
