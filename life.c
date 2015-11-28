@@ -6,9 +6,7 @@
 #include "util.h"
 #include <math.h>
 #include <pthread.h>
- #include <stdio.h>
-
-pthread_mutex_t * cell_locks;
+#include <stdio.h>
 
 
 /*****************************************************************************
@@ -23,6 +21,7 @@ struct thread_argument_t {
     int jth_slice;
     int gens_max;
     pthread_barrier_t *barrier;
+    pthread_mutex_t* boundary_locks;
 };
 
 void do_cell(char *outboard, char *inboard, int i, int j, const int LDA);
@@ -73,7 +72,7 @@ inline void postprocessing_board(char* outboard, int nrows, int ncols) {
 // Approach 2: we partition the board into blocks
 void* worker_fuction_by_blocks(void *args) {
 
-	struct thread_argument_t *arg = (struct thread_argument_t*)args;
+  struct thread_argument_t *arg = (struct thread_argument_t*)args;
   char *outboard = arg->outboard;
   char *inboard = arg->inboard;
   int nrows = arg->nrows;
@@ -111,21 +110,67 @@ void* worker_fuction_by_blocks(void *args) {
 
 
 void* worker_fuction_by_rows_encoding(void *args) {
-  struct thread_argument_t *arg = (struct thread_argument_t*)args;
-  int ith_slice = arg->ith_slice;
-  int slice_size = arg->nrows / NUM_THREADS;
-  int nrows = arg->nrows;
-  int ncols = arg->ncols;
-  char *outboard = arg->outboard;
-  char *inboard = arg->inboard;
+	  struct thread_argument_t *arg = (struct thread_argument_t*)args;
+	  int ith_slice = arg->ith_slice;
+	  int slice_size = arg->nrows / NUM_THREADS;
+	  int nrows = arg->nrows;
+	  int ncols = arg->ncols;
+	  char *outboard = arg->outboard;
+	  char *inboard = arg->inboard;
+	  int start = ith_slice * slice_size;
+	  int end = start + slice_size;
+	  int gens_max = arg->gens_max;
+	  pthread_mutex_t* boundary_locks = arg->boundary_locks;
+	  pthread_barrier_t* barrier = arg->barrier;
 
-  for (int i = ith_slice * slice_size; i < (ith_slice + 1) * slice_size; ++i){
+	for  (int curgen = 0; curgen < gens_max; ++curgen) {
+	  	for (int i = start; i < end; ++i){
+	  		// if (i > start + 1&& i < end - 1) 
+	    	for (int j = 0; j < ncols; ++j) {
+	    		// depending on the location of the cell, we choose to lock or not to lock
+	    		if (i <= start + 1) {
+	    			//lock upper boundary
+	    			if (ith_slice != 0){
 
-    for (int j = 0; j < ncols; ++j) {
-		do_cell(outboard, inboard, i, j, nrows);
-    }
-  }
-  return NULL;
+						pthread_mutex_lock(&boundary_locks[ith_slice]);
+						do_cell(outboard, inboard, i, j, nrows);
+
+		    			pthread_mutex_unlock(&boundary_locks[ith_slice]);
+	    			} else {
+	    				// the lock for the first slice is the same lock for the last slice
+	    				pthread_mutex_lock(&boundary_locks[NUM_THREADS - 1]);
+					do_cell(outboard, inboard, i, j, nrows);
+
+		    			pthread_mutex_unlock(&boundary_locks[NUM_THREADS - 1]);
+	    			}
+
+	    		} 
+	    		else if (i >= end - 1) {
+	    			//lock lower boundary
+	    			if(ith_slice != NUM_THREADS - 1) {
+		    			pthread_mutex_lock(&boundary_locks[ith_slice + 1]);
+						do_cell(outboard, inboard, i, j, nrows);
+		    			pthread_mutex_unlock(&boundary_locks[ith_slice + 1]);
+	    			} else {
+	    				pthread_mutex_lock(&boundary_locks[0]);
+	    				do_cell(outboard, inboard, i, j, nrows);
+		    			pthread_mutex_unlock(&boundary_locks[0]);
+	    			}
+	    		}
+	    		else {
+	    			// no need for lock
+					do_cell(outboard, inboard, i, j, nrows);
+	    		}
+	    	}
+	  }
+
+	  pthread_barrier_wait(barrier);
+	  // each thread copies his portion of data
+	  memcpy(inboard + start, outboard + start, slice_size * ncols * sizeof (char));
+	  
+	  pthread_barrier_wait(barrier);
+	}
+	  return NULL;
 }
 
 void* worker_fuction_by_rows(void *args) {
@@ -191,55 +236,41 @@ char * parallel_game_of_life(char *outboard,
                       const int ncols,
                       const int gens_max,
                       pthread_t *worker_threads) {
-    // barrier var
+    pthread_mutex_t boundary_locks[NUM_THREADS];
+    for (int i = 0; i < NUM_THREADS; i++) {
+    	pthread_mutex_init(&boundary_locks[i], NULL);
+    }
     pthread_barrier_t barrier;
     pthread_barrier_init(&barrier, NULL, NUM_THREADS);
     // const int LDA = nrows;
 
-
   	LDA = nrows;
-	  // preprocessing_board(inboard, outboard, nrows, ncols);
+	preprocessing_board(inboard, outboard, nrows, ncols);
   	board_init(inboard, nrows);
   	memmove(outboard, inboard, nrows * ncols * sizeof(char));
+  	struct thread_argument_t args[NUM_THREADS];
 
-  	cell_locks = malloc(nrows * ncols * sizeof(pthread_mutex_t));
-  	for (int i = 0; i < nrows * ncols; ++i) {
-  		// cell_locks[i] = PTHREAD_MUTEX_INITIALIZER;
-  		pthread_mutex_init(&cell_locks[i], NULL);
-  	}
-
-    for (int curgen = 0; curgen < gens_max; ++curgen) {
-	
-        /*Thought 1: slice the board by rows, i.e. horizontally*/
-        // initialize the thread arguments
-        // struct thread_argument_t *args = malloc(sizeof(struct thread_argument_t));
-      	struct thread_argument_t args[NUM_THREADS];
-	
-        for (int i = 0; i < NUM_THREADS; ++i) {
+  	for (int i = 0; i < NUM_THREADS; ++i) {
 		    args[i].outboard = outboard;
 		    args[i].inboard = inboard;
 		    args[i].nrows = nrows;
 		    args[i].ncols = ncols;  
 		    args[i].ith_slice = i;
+		    args[i].gens_max = gens_max;
+		    args[i].barrier = &barrier;
+		    args[i].boundary_locks = boundary_locks;
             pthread_create(&worker_threads[i], NULL, worker_fuction_by_rows_encoding, &args[i]);
         }
-       
-        for (int i = 0; i < NUM_THREADS; ++i) {
+
+    for (int i = 0; i < NUM_THREADS; ++i) {
 	    	pthread_join(worker_threads[i],NULL);
-        }
-	
-        SWAP_BOARDS(outboard, inboard);
     }
 
     postprocessing_board(outboard,nrows,ncols);
-    // inboard or outboard??????
+
     return outboard;
 }
 
-
-
-// pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
-// pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 
 void do_cell(char *outboard, char *inboard, int i, int j, const int size) {
     int inorth, isouth, jwest, jeast;
@@ -263,41 +294,6 @@ void do_cell(char *outboard, char *inboard, int i, int j, const int size) {
 		    N_DEC(outboard, isouth, jwest);
 		    N_DEC(outboard, isouth, j);
 		    N_DEC(outboard, isouth, jeast);
-		    
-		    
-		 //    pthread_mutex_lock(&cell_locks[inorth * size + jwest]);
-		 //    N_DEC(outboard, inorth, jwest);
-			// pthread_mutex_unlock(&cell_locks[inorth * size + jwest]);
-
-			// pthread_mutex_lock(&cell_locks[inorth * size + j]);
-		 //    N_DEC(outboard, inorth, j);
-			// pthread_mutex_unlock(&cell_locks[inorth * size + j]);
-
-			// pthread_mutex_lock(&cell_locks[inorth * size + jeast]);
-		 //    N_DEC(outboard, inorth, jeast);
-		 //    pthread_mutex_unlock(&cell_locks[inorth * size + j]);
-
-			// pthread_mutex_lock(&cell_locks[i * size + jwest]);
-		 //    N_DEC(outboard, i, jwest);
-   		// 		pthread_mutex_unlock(&cell_locks[i * size + jwest]);
-
-			// pthread_mutex_lock(&cell_locks[i * size + jeast]);
-		 //    N_DEC(outboard, i, jeast);
-		 //    pthread_mutex_unlock(&cell_locks[i * size + jeast]);
-		    
-		 //    		pthread_mutex_lock(&cell_locks[isouth * size + jwest]);
-
-		 //    N_DEC(outboard, isouth, jwest);
-		 //    		pthread_mutex_unlock(&cell_locks[isouth * size + jwest]);
-
-			// pthread_mutex_lock(&cell_locks[isouth * size + j]);
-		 //    N_DEC(outboard, isouth, j);
-		 //    pthread_mutex_unlock(&cell_locks[isouth * size + j]);
-	
-			// pthread_mutex_lock(&cell_locks[isouth * size + jeast]);
-		 //    N_DEC(outboard, isouth, jeast);
-   //  		pthread_mutex_lock(&cell_locks[isouth * size + jeast]);
-
 		}
     }
     else {
@@ -319,39 +315,6 @@ void do_cell(char *outboard, char *inboard, int i, int j, const int size) {
 		    N_INC(outboard, isouth, jwest);
 		    N_INC(outboard, isouth, j);
 		    N_INC(outboard, isouth, jeast);
-		    // pthread_mutex_unlock(&);
-		 //     pthread_mutex_lock(&cell_locks[inorth * size + jwest]);
-		 //    N_INC(outboard, inorth, jwest);
-			// pthread_mutex_unlock(&cell_locks[inorth * size + jwest]);
-
-			// pthread_mutex_lock(&cell_locks[inorth * size + j]);
-		 //    N_INC(outboard, inorth, j);
-			// pthread_mutex_unlock(&cell_locks[inorth * size + j]);
-
-			// pthread_mutex_lock(&cell_locks[inorth * size + jeast]);
-		 //    N_INC(outboard, inorth, jeast);
-		 //    pthread_mutex_unlock(&cell_locks[inorth * size + j]);
-
-			// pthread_mutex_lock(&cell_locks[i * size + jwest]);
-		 //    N_INC(outboard, i, jwest);
-   //  		pthread_mutex_unlock(&cell_locks[i * size + jwest]);
-
-			// pthread_mutex_lock(&cell_locks[i * size + jeast]);
-		 //    N_INC(outboard, i, jeast);
-		 //    pthread_mutex_unlock(&cell_locks[i * size + jeast]);
-		    
-		 //    		pthread_mutex_lock(&cell_locks[isouth * size + jwest]);
-
-		 //    N_INC(outboard, isouth, jwest);
-		 //    		pthread_mutex_unlock(&cell_locks[isouth * size + jwest]);
-
-			// pthread_mutex_lock(&cell_locks[isouth * size + j]);
-		 //    N_INC(outboard, isouth, j);
-		 //    pthread_mutex_unlock(&cell_locks[isouth * size + j]);
-	
-			// pthread_mutex_lock(&cell_locks[isouth * size + jeast]);
-		 //    N_INC(outboard, isouth, jeast);
-   //  		pthread_mutex_lock(&cell_locks[isouth * size + jeast]);
 		}
     }
 }
