@@ -7,6 +7,7 @@
 #include <math.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 
 /*****************************************************************************
@@ -18,7 +19,6 @@ struct thread_argument_t {
     int nrows;
     int ncols;
     int ith_slice;
-    int jth_slice;
     int gens_max;
     pthread_barrier_t *barrier;
     pthread_mutex_t* boundary_locks;
@@ -124,45 +124,69 @@ void* worker_fuction_by_rows_encoding(void *args) {
 	  pthread_barrier_t* barrier = arg->barrier;
 
 	for  (int curgen = 0; curgen < gens_max; ++curgen) {
-	  	for (int i = start; i < end; ++i){
-	  		// if (i > start + 1&& i < end - 1) 
-	    	for (int j = 0; j < ncols; ++j) {
-	    		// depending on the location of the cell, we choose to lock or not to lock
-	    		if (i <= start + 1) {
-	    			//lock upper boundary
-	    			if (ith_slice != 0){
+	  // 	for (int i = start; i < end; ++i){
+	  // 		// if (i > start + 1&& i < end - 1) 
+	  //   	for (int j = 0; j < ncols; ++j) {
+	  //   		// depending on the location of the cell, we choose to lock or not to lock
+	  //   		if (i <= start + 1) {
+	  //   			//lock upper boundary
+	  //   			if (ith_slice != 0){
 
-						pthread_mutex_lock(&boundary_locks[ith_slice]);
-						do_cell(outboard, inboard, i, j, nrows);
+			// 			pthread_mutex_lock(&boundary_locks[ith_slice]);
+			// 				do_cell(outboard, inboard, i, j, nrows);
 
-		    			pthread_mutex_unlock(&boundary_locks[ith_slice]);
-	    			} else {
-	    				// the lock for the first slice is the same lock for the last slice
-	    				pthread_mutex_lock(&boundary_locks[NUM_THREADS - 1]);
-					do_cell(outboard, inboard, i, j, nrows);
+		 //    			pthread_mutex_unlock(&boundary_locks[ith_slice]);
+	  //   			} else {
+	  //   				// the lock for the first slice is the same lock for the last slice
+	  //   				pthread_mutex_lock(&boundary_locks[NUM_THREADS - 1]);
+			// 				do_cell(outboard, inboard, i, j, nrows);
 
-		    			pthread_mutex_unlock(&boundary_locks[NUM_THREADS - 1]);
-	    			}
+		 //    			pthread_mutex_unlock(&boundary_locks[NUM_THREADS - 1]);
+	  //   			}
 
-	    		} 
-	    		else if (i >= end - 1) {
-	    			//lock lower boundary
-	    			if(ith_slice != NUM_THREADS - 1) {
-		    			pthread_mutex_lock(&boundary_locks[ith_slice + 1]);
-						do_cell(outboard, inboard, i, j, nrows);
-		    			pthread_mutex_unlock(&boundary_locks[ith_slice + 1]);
-	    			} else {
-	    				pthread_mutex_lock(&boundary_locks[0]);
-	    				do_cell(outboard, inboard, i, j, nrows);
-		    			pthread_mutex_unlock(&boundary_locks[0]);
-	    			}
-	    		}
-	    		else {
-	    			// no need for lock
-					do_cell(outboard, inboard, i, j, nrows);
-	    		}
-	    	}
-	  }
+	  //   		} 
+	  //   		else if (i < end - 1) {
+	  //   			// no need for lock
+			// 		do_cell(outboard, inboard, i, j, nrows);
+	  //   		}
+	  //   		else {
+	  //   			//lock lower boundary
+	  //   			if(ith_slice != NUM_THREADS - 1) {
+		 //    			pthread_mutex_lock(&boundary_locks[ith_slice + 1]);
+			// 			do_cell(outboard, inboard, i, j, nrows);
+		 //    			pthread_mutex_unlock(&boundary_locks[ith_slice + 1]);
+	  //   			} else {
+	  //   				pthread_mutex_lock(&boundary_locks[0]);
+	  //   				do_cell(outboard, inboard, i, j, nrows);
+		 //    			pthread_mutex_unlock(&boundary_locks[0]);
+	  //   			}
+	  //   		}
+	  //   	}
+	  // }
+		int i,j;
+		 for (j = 0; j < ncols; j++) {
+        	/*3 sections of the loop. We make the edge conditions between threads run separately in order
+        	to avoid unnecessary code in the main body of the loop where the edge conditions aren't important */
+        	for (i = start; i < start + 2; i++) {
+        		// lock upper 
+        		pthread_mutex_lock(&boundary_locks[ith_slice % 8]);
+          		do_cell(outboard, inboard, i, j, nrows);
+          		pthread_mutex_unlock(&boundary_locks[ith_slice % 8]);
+
+        	}
+          	for (i = start + 2; i < end - 2; i++) {
+          		do_cell(outboard, inboard, i, j, nrows);
+	 
+            }
+        	for (i = end - 2; i < end; i++) {
+        		// lock lower
+        		pthread_mutex_lock(&boundary_locks[(ith_slice + 1) % 8 ]);
+   				do_cell(outboard, inboard, i, j, nrows);
+   				pthread_mutex_unlock(&boundary_locks[(ith_slice + 1)% 8]);
+
+        	}
+        }
+
 
 	  pthread_barrier_wait(barrier);
 	  // each thread copies his portion of data
@@ -223,8 +247,7 @@ game_of_life(char *outboard,
         return NULL;
     }
     else {
-        pthread_t worker_threads[NUM_THREADS];
-        return parallel_game_of_life(outboard, inboard, nrows, ncols, gens_max, worker_threads);
+        return parallel_game_of_life(outboard, inboard, nrows, ncols, gens_max);
     }
 }
 
@@ -234,8 +257,10 @@ char * parallel_game_of_life(char *outboard,
                       char *inboard,
                       const int nrows,
                       const int ncols,
-                      const int gens_max,
-                      pthread_t *worker_threads) {
+                      const int gens_max) {
+	
+	pthread_t worker_threads[NUM_THREADS];
+
     pthread_mutex_t boundary_locks[NUM_THREADS];
     for (int i = 0; i < NUM_THREADS; i++) {
     	pthread_mutex_init(&boundary_locks[i], NULL);
@@ -245,7 +270,7 @@ char * parallel_game_of_life(char *outboard,
     // const int LDA = nrows;
 
   	LDA = nrows;
-	preprocessing_board(inboard, outboard, nrows, ncols);
+  	// preprocessing_board(inboard, outboard, nrows,  ncols);
   	board_init(inboard, nrows);
   	memmove(outboard, inboard, nrows * ncols * sizeof(char));
   	struct thread_argument_t args[NUM_THREADS];
@@ -263,12 +288,12 @@ char * parallel_game_of_life(char *outboard,
         }
 
     for (int i = 0; i < NUM_THREADS; ++i) {
-	    	pthread_join(worker_threads[i],NULL);
+	    pthread_join(worker_threads[i],NULL);
     }
 
-    postprocessing_board(outboard,nrows,ncols);
+    postprocessing_board(inboard,nrows,ncols);
 
-    return outboard;
+    return inboard;
 }
 
 
@@ -279,26 +304,28 @@ void do_cell(char *outboard, char *inboard, int i, int j, const int size) {
 		if(TOKILL(cell)) {
 			// if this cell is alive and it should die, then we need to
 			// do two things: mark it alive....
-		    KILL(BOARD(outboard, i, j));
+			    KILL(BOARD(outboard, i, j));
 
-		    // ... and decrement the counter in its neighbors
-		    jwest = mod(j-1, size);
-		    jeast = mod(j+1, size);
-		    inorth = mod(i-1, size);
-		    isouth = mod(i+1, size);
-		    N_DEC(outboard, inorth, jwest);
-		    N_DEC(outboard, inorth, j);
-		    N_DEC(outboard, inorth, jeast);
-		    N_DEC(outboard, i, jwest);
-		    N_DEC(outboard, i, jeast);
-		    N_DEC(outboard, isouth, jwest);
-		    N_DEC(outboard, isouth, j);
-		    N_DEC(outboard, isouth, jeast);
+			    // ... and decrement the counter in its neighbors
+			    jwest = mod(j-1, size);
+			    jeast = mod(j+1, size);
+			    inorth = mod(i-1, size);
+			    isouth = mod(i+1, size);
+			    N_DEC(outboard, inorth, jwest);
+			    N_DEC(outboard, inorth, j);
+			    N_DEC(outboard, inorth, jeast);
+			    N_DEC(outboard, i, jwest);
+			    N_DEC(outboard, i, jeast);
+			    N_DEC(outboard, isouth, jwest);
+			    N_DEC(outboard, isouth, j);
+			    N_DEC(outboard, isouth, jeast);
+			
 		}
     }
     else {
     	// this cell is dead
 		if(TOSPAWN(cell)) {
+			
 		    SPAWN(BOARD(outboard, i, j));
 
 		    jwest = mod(j-1, size);
@@ -322,7 +349,7 @@ void do_cell(char *outboard, char *inboard, int i, int j, const int size) {
 void board_init(char *board, int size) {
     int i, j;
     for (i = 0; i < size*size; i++) {
-		if(board[i] == (char)1) {
+		if(board[i] == 1) {
 		    board[i] = 0;
 		    SPAWN(board[i]);
 		}
