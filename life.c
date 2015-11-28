@@ -184,7 +184,7 @@ void* worker_fuction_by_rows_encoding(void *args) {
 
 	  pthread_barrier_wait(barrier);
 	  // each thread copies his portion of data
-	  memcpy(outboard + start, inboard + start, slice_size * ncols * sizeof (char));
+	  memcpy(inboard + start, outboard + start, slice_size * ncols * sizeof (char));
 	  
 	  pthread_barrier_wait(barrier);
 	}
@@ -285,9 +285,9 @@ char * parallel_game_of_life(char *outboard,
 	    pthread_join(worker_threads[i],NULL);
     }
 
-    postprocessing_board(outboard,nrows,ncols);
+    postprocessing_board(inboard,nrows,ncols);
 
-    return outboard;
+    return inboard;
 }
 
 
