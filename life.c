@@ -46,25 +46,19 @@ void preprocessing_board(char* inboard, char* outboard, int nrows, int ncols) {
                         BOARD(inboard, isouth, j) +
                         BOARD(inboard, isouth, jeast);
 
-                        char encoding = 0;
-                        // the alive is either 0 or 1
-                        char alive = BOARD(inboard, i,j);
-                        // first encode the bit 5 with alive or dead 
-                        encoding = encoding | (alive << 4);
-                        // then encode its neighbor count, which is a number
-                        // between 0 and 8. This fits in the lower 4 bits 
-                        encoding = encoding | neighbor_count;
+                        BOARD(outboard,i,j) = BOARD(inboard,i,j) << 4;
 
-              			BOARD(inboard,i,j) = encoding;
+
+              			BOARD(outboard,i,j) += neighbor_count;
 		}
 	}
-	memmove(outboard, inboard, nrows * ncols * sizeof(char));
+	memmove(inboard, outboard, nrows * ncols * sizeof(char));
 }
 
 inline void postprocessing_board(char* outboard, int nrows, int ncols) {
- 	for (int i = 0; i < nrows*ncols; i+=2) {
-	    outboard[i] = ALIVE(outboard[i]);
-	    outboard[i+1] = ALIVE(outboard[i+1]);
+ 	for (int i = 0; i < nrows*ncols; i++) {
+	    outboard[i] = (char)ALIVE(outboard[i]);
+	    // outboard[i+1] = ALIVE(outboard[i+1]);
   }
 }
 
@@ -111,86 +105,86 @@ void* worker_fuction_by_blocks(void *args) {
 
 void* worker_fuction_by_rows_encoding(void *args) {
 	  struct thread_argument_t *arg = (struct thread_argument_t*)args;
-	  int ith_slice = arg->ith_slice;
-	  int slice_size = arg->nrows / NUM_THREADS;
-	  int nrows = arg->nrows;
-	  int ncols = arg->ncols;
 	  char *outboard = arg->outboard;
 	  char *inboard = arg->inboard;
+	  int nrows = arg->nrows;
+	  int ncols = arg->ncols;
+	  int ith_slice = arg->ith_slice;
+	  int gens_max = arg->gens_max;
+	  pthread_barrier_t* barrier = arg->barrier;
+	  pthread_mutex_t* boundary_locks = arg->boundary_locks;
+	  int slice_size = arg->nrows / NUM_THREADS;
 	  int start = ith_slice * slice_size;
 	  int end = start + slice_size;
-	  int gens_max = arg->gens_max;
-	  pthread_mutex_t* boundary_locks = arg->boundary_locks;
-	  pthread_barrier_t* barrier = arg->barrier;
 
 	for  (int curgen = 0; curgen < gens_max; ++curgen) {
-	  // 	for (int i = start; i < end; ++i){
-	  // 		// if (i > start + 1&& i < end - 1) 
-	  //   	for (int j = 0; j < ncols; ++j) {
-	  //   		// depending on the location of the cell, we choose to lock or not to lock
-	  //   		if (i <= start + 1) {
-	  //   			//lock upper boundary
-	  //   			if (ith_slice != 0){
+	  	for (int i = start; i < end; ++i){
+	  		// if (i > start + 1&& i < end - 1) 
+	    	for (int j = 0; j < ncols; ++j) {
+	    		// depending on the location of the cell, we choose to lock or not to lock
+	    		if (i <= start + 1) {
+	    			//lock upper boundary
+	    			if (ith_slice != 0){
 
-			// 			pthread_mutex_lock(&boundary_locks[ith_slice]);
-			// 				do_cell(outboard, inboard, i, j, nrows);
+						pthread_mutex_lock(&boundary_locks[ith_slice]);
+							do_cell(outboard, inboard, i, j, nrows);
 
-		 //    			pthread_mutex_unlock(&boundary_locks[ith_slice]);
-	  //   			} else {
-	  //   				// the lock for the first slice is the same lock for the last slice
-	  //   				pthread_mutex_lock(&boundary_locks[NUM_THREADS - 1]);
-			// 				do_cell(outboard, inboard, i, j, nrows);
+		    			pthread_mutex_unlock(&boundary_locks[ith_slice]);
+	    			} else {
+	    				// the lock for the first slice is the same lock for the last slice
+	    				pthread_mutex_lock(&boundary_locks[NUM_THREADS - 1]);
+							do_cell(outboard, inboard, i, j, nrows);
 
-		 //    			pthread_mutex_unlock(&boundary_locks[NUM_THREADS - 1]);
-	  //   			}
+		    			pthread_mutex_unlock(&boundary_locks[NUM_THREADS - 1]);
+	    			}
 
-	  //   		} 
-	  //   		else if (i < end - 1) {
-	  //   			// no need for lock
-			// 		do_cell(outboard, inboard, i, j, nrows);
-	  //   		}
-	  //   		else {
-	  //   			//lock lower boundary
-	  //   			if(ith_slice != NUM_THREADS - 1) {
-		 //    			pthread_mutex_lock(&boundary_locks[ith_slice + 1]);
-			// 			do_cell(outboard, inboard, i, j, nrows);
-		 //    			pthread_mutex_unlock(&boundary_locks[ith_slice + 1]);
-	  //   			} else {
-	  //   				pthread_mutex_lock(&boundary_locks[0]);
-	  //   				do_cell(outboard, inboard, i, j, nrows);
-		 //    			pthread_mutex_unlock(&boundary_locks[0]);
-	  //   			}
-	  //   		}
-	  //   	}
-	  // }
-		int i,j;
-		 for (j = 0; j < ncols; j++) {
-        	/*3 sections of the loop. We make the edge conditions between threads run separately in order
-        	to avoid unnecessary code in the main body of the loop where the edge conditions aren't important */
-        	for (i = start; i < start + 2; i++) {
-        		// lock upper 
-        		pthread_mutex_lock(&boundary_locks[ith_slice % 8]);
-          		do_cell(outboard, inboard, i, j, nrows);
-          		pthread_mutex_unlock(&boundary_locks[ith_slice % 8]);
+	    		} 
+	    		else if (i < end - 1) {
+	    			// no need for lock
+					do_cell(outboard, inboard, i, j, nrows);
+	    		}
+	    		else {
+	    			//lock lower boundary
+	    			if(ith_slice != NUM_THREADS - 1) {
+		    			pthread_mutex_lock(&boundary_locks[ith_slice + 1]);
+						do_cell(outboard, inboard, i, j, nrows);
+		    			pthread_mutex_unlock(&boundary_locks[ith_slice + 1]);
+	    			} else {
+	    				pthread_mutex_lock(&boundary_locks[0]);
+	    				do_cell(outboard, inboard, i, j, nrows);
+		    			pthread_mutex_unlock(&boundary_locks[0]);
+	    			}
+	    		}
+	    	}
+	  }
+		// int i,j;
+		//  for (j = 0; j < ncols; j++) {
+  //       	/*3 sections of the loop. We make the edge conditions between threads run separately in order
+  //       	to avoid unnecessary code in the main body of the loop where the edge conditions aren't important */
+  //       	for (i = start; i < start + 2; i++) {
+  //       		// lock upper 
+  //       		pthread_mutex_lock(&boundary_locks[ith_slice % 8]);
+  //         		do_cell(outboard, inboard, i, j, nrows);
+  //         		pthread_mutex_unlock(&boundary_locks[ith_slice % 8]);
 
-        	}
-          	for (i = start + 2; i < end - 2; i++) {
-          		do_cell(outboard, inboard, i, j, nrows);
+  //       	}
+  //         	for (i = start + 2; i < end - 2; i++) {
+  //         		do_cell(outboard, inboard, i, j, nrows);
 	 
-            }
-        	for (i = end - 2; i < end; i++) {
-        		// lock lower
-        		pthread_mutex_lock(&boundary_locks[(ith_slice + 1) % 8 ]);
-   				do_cell(outboard, inboard, i, j, nrows);
-   				pthread_mutex_unlock(&boundary_locks[(ith_slice + 1)% 8]);
+  //           }
+  //       	for (i = end - 2; i < end; i++) {
+  //       		// lock lower
+  //       		pthread_mutex_lock(&boundary_locks[(ith_slice + 1) % 8 ]);
+  //  				do_cell(outboard, inboard, i, j, nrows);
+  //  				pthread_mutex_unlock(&boundary_locks[(ith_slice + 1)% 8]);
 
-        	}
-        }
+  //       	}
+  //       }
 
 
 	  pthread_barrier_wait(barrier);
 	  // each thread copies his portion of data
-	  memcpy(inboard + start, outboard + start, slice_size * ncols * sizeof (char));
+	  memcpy(outboard + start, inboard + start, slice_size * ncols * sizeof (char));
 	  
 	  pthread_barrier_wait(barrier);
 	}
@@ -291,9 +285,9 @@ char * parallel_game_of_life(char *outboard,
 	    pthread_join(worker_threads[i],NULL);
     }
 
-    postprocessing_board(inboard,nrows,ncols);
+    postprocessing_board(outboard,nrows,ncols);
 
-    return inboard;
+    return outboard;
 }
 
 
@@ -311,6 +305,7 @@ void do_cell(char *outboard, char *inboard, int i, int j, const int size) {
 			    jeast = mod(j+1, size);
 			    inorth = mod(i-1, size);
 			    isouth = mod(i+1, size);
+
 			    N_DEC(outboard, inorth, jwest);
 			    N_DEC(outboard, inorth, j);
 			    N_DEC(outboard, inorth, jeast);
@@ -332,7 +327,6 @@ void do_cell(char *outboard, char *inboard, int i, int j, const int size) {
 		    jeast = mod(j+1, size);
 		    inorth = mod(i-1, size);
 		    isouth = mod(i+1, size);
-		    // pthread_mutex_lock(&);
 
 		    N_INC(outboard, inorth, jwest);
 		    N_INC(outboard, inorth, j);
