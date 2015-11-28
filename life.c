@@ -56,9 +56,11 @@ void preprocessing_board(char* inboard, char* outboard, int nrows, int ncols) {
 	}
 	memmove(inboard, outboard, nrows * ncols * sizeof(char));
 }
+
 // decode the board 
 inline void postprocessing_board(char* board, int nrows, int ncols) {
- 	for (int i = 0; i < nrows*ncols; ++i) {
+	int total_size = nrows * ncols;
+ 	for (int i = 0; i < total_size; ++i) {
 	    board[i] = ALIVE(board[i]);
   }
 }
@@ -119,67 +121,67 @@ void* worker_fuction_by_rows_encoding(void *args) {
 	  int end = start + slice_size;
 
 	for  (int curgen = 0; curgen < gens_max; ++curgen) {
-	  	// for (int i = start; i < end; ++i){
-	  //   	for (int j = 0; j < ncols; ++j) {
-	  //   		// depending on the location of the cell, we choose to lock or not to lock
-	  //   		if (i <= start + 1) {
-	  //   			//lock upper boundary
-	  //   			if (ith_slice != 0){
+	  	for (int i = start; i < end; ++i){
+	    	for (int j = 0; j < ncols; ++j) {
+	    		// depending on the location of the cell, we choose to lock or not to lock
+	    		if (i <= start + 1) {
+	    			//lock upper boundary
+	    			if (ith_slice != 0){
 
-			// 			pthread_mutex_lock(&boundary_locks[ith_slice]);
-			// 				do_cell(outboard, inboard, i, j, nrows);
+						pthread_mutex_lock(&boundary_locks[ith_slice]);
+							do_cell(outboard, inboard, i, j, nrows);
 
-		 //    			pthread_mutex_unlock(&boundary_locks[ith_slice]);
-	  //   			} else {
-	  //   				// the lock for the first slice is the same lock for the last slice
-	  //   				pthread_mutex_lock(&boundary_locks[NUM_THREADS - 1]);
-			// 				do_cell(outboard, inboard, i, j, nrows);
+		    			pthread_mutex_unlock(&boundary_locks[ith_slice]);
+	    			} else {
+	    				// the lock for the first slice is the same lock for the last slice
+	    				pthread_mutex_lock(&boundary_locks[NUM_THREADS - 1]);
+							do_cell(outboard, inboard, i, j, nrows);
 
-		 //    			pthread_mutex_unlock(&boundary_locks[NUM_THREADS - 1]);
-	  //   			}
+		    			pthread_mutex_unlock(&boundary_locks[NUM_THREADS - 1]);
+	    			}
 
-	  //   		} 
-	  //   		else if (i < end - 1) {
-	  //   			// no need for lock
-			// 		do_cell(outboard, inboard, i, j, nrows);
-	  //   		}
-	  //   		else {
-	  //   			//lock lower boundary
-	  //   			if(ith_slice != NUM_THREADS - 1) {
-		 //    			pthread_mutex_lock(&boundary_locks[ith_slice + 1]);
-			// 			do_cell(outboard, inboard, i, j, nrows);
-		 //    			pthread_mutex_unlock(&boundary_locks[ith_slice + 1]);
-	  //   			} else {
-	  //   				pthread_mutex_lock(&boundary_locks[0]);
-	  //   				do_cell(outboard, inboard, i, j, nrows);
-		 //    			pthread_mutex_unlock(&boundary_locks[0]);
-	  //   			}
-	  //   		}
-	  //   	}
-	  // }
-		int i,j;
-		 for (j = 0; j < ncols; j++) {
-        	/*3 sections of the loop. We make the edge conditions between threads run separately in order
-        	to avoid unnecessary code in the main body of the loop where the edge conditions aren't important */
-        	for (i = start; i < start + 2; i++) {
-        		// lock upper 
-        		pthread_mutex_lock(&boundary_locks[ith_slice % 8]);
-          		do_cell(outboard, inboard, i, j, nrows);
-          		pthread_mutex_unlock(&boundary_locks[ith_slice % 8]);
+	    		} 
+	    		else if (i < end - 1) {
+	    			// no need for lock
+					do_cell(outboard, inboard, i, j, nrows);
+	    		}
+	    		else {
+	    			//lock lower boundary
+	    			if(ith_slice != NUM_THREADS - 1) {
+		    			pthread_mutex_lock(&boundary_locks[ith_slice + 1]);
+						do_cell(outboard, inboard, i, j, nrows);
+		    			pthread_mutex_unlock(&boundary_locks[ith_slice + 1]);
+	    			} else {
+	    				pthread_mutex_lock(&boundary_locks[0]);
+	    				do_cell(outboard, inboard, i, j, nrows);
+		    			pthread_mutex_unlock(&boundary_locks[0]);
+	    			}
+	    		}
+	    	}
+	  }
+		// int i,j;
+		//  for (j = 0; j < ncols; j++) {
+  //       	/*3 sections of the loop. We make the edge conditions between threads run separately in order
+  //       	to avoid unnecessary code in the main body of the loop where the edge conditions aren't important */
+  //       	for (i = start; i < start + 2; i++) {
+  //       		// lock upper 
+  //       		pthread_mutex_lock(&boundary_locks[ith_slice % 8]);
+  //         		do_cell(outboard, inboard, i, j, nrows);
+  //         		pthread_mutex_unlock(&boundary_locks[ith_slice % 8]);
 
-        	}
-          	for (i = start + 2; i < end - 2; i++) {
-          		do_cell(outboard, inboard, i, j, nrows);
+  //       	}
+  //         	for (i = start + 2; i < end - 2; i++) {
+  //         		do_cell(outboard, inboard, i, j, nrows);
 	 
-            }
-        	for (i = end - 2; i < end; i++) {
-        		// lock lower
-        		pthread_mutex_lock(&boundary_locks[(ith_slice + 1) % 8 ]);
-   				do_cell(outboard, inboard, i, j, nrows);
-   				pthread_mutex_unlock(&boundary_locks[(ith_slice + 1)% 8]);
+  //           }
+  //       	for (i = end - 2; i < end; i++) {
+  //       		// lock lower
+  //       		pthread_mutex_lock(&boundary_locks[(ith_slice + 1) % 8 ]);
+  //  				do_cell(outboard, inboard, i, j, nrows);
+  //  				pthread_mutex_unlock(&boundary_locks[(ith_slice + 1)% 8]);
 
-        	}
-        }
+  //       	}
+  //       }
 
 
 	  pthread_barrier_wait(barrier);
@@ -284,7 +286,7 @@ char * parallel_game_of_life(char *outboard,
     }
     
     // reverse the board to original encoding
-    postprocessing_board(inboard,LDA,LDA);
+    postprocessing_board(outboard,LDA,LDA);
     return outboard;
 }
 
