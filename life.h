@@ -25,8 +25,9 @@
 #define TOKILL(c) ((c < (char)0x12 || cell > (char)0x13))
 #define TOSPAWN(c) (c == (char)0x3)
 #define N_INC(__board, __i, __j) (BOARD(__board, __i, __j) += 1)
+// #define N_INC(__board, __i, __j) (__atomic_fetch_add(&BOARD(__board, __i, __j),1,0))
 #define N_DEC(__board, __i, __j) (BOARD(__board, __i, __j) -= 1)
-
+// #define N_DEC(__board, __i, __j) (__atomic_fetch_sub(&BOARD(__board, __i, __j),1,0))
 
 char *
         game_of_life(char *outboard,
@@ -55,11 +56,5 @@ char *
                               const int gens_max,
                               pthread_t * thread);
 
-char* parallel_game_of_life_gen(char *outboard,
-                      char *inboard,
-                      const int nrows,
-                      const int ncols,
-                      const int gens_max,
-                      pthread_t *worker_threads) ;
 
 #endif /* _life_h */
