@@ -32,8 +32,8 @@ void board_init(char *board, int size);
 // updated with encoding ==> so at the end we copy the outboard to the inboard
 void preprocessing_board(char* inboard, char* outboard, int size) {
   char* board = inboard;
-	 int i, j;
-    for (i = 0; i < size*size; i++) {
+	 int i, j, total_size = size*size;
+    for (i = 0; i < total_size; i++) {
     if(board[i] == 1) {
         board[i] = 0;
         SPAWN(board[i]);
@@ -83,41 +83,61 @@ void* worker_fuction_by_rows_encoding(void *args) {
 	  int gens_max = arg->gens_max;
 	  pthread_barrier_t* barrier = arg->barrier;
 	  pthread_mutex_t* boundary_locks = arg->boundary_locks;
+    pthread_mutex_t* boundary_locks_upper = &boundary_locks[ith_slice];
     pthread_mutex_t* boundary_locks_lower = &boundary_locks[(ith_slice + 1)%NUM_THREADS]; 
 	  int slice_size = arg->nrows / NUM_THREADS;
 	  int start = ith_slice * slice_size;
 	  int end = start + slice_size;
 
 	for  (int curgen = 0; curgen < gens_max; ++curgen) {
-	  	for (int i = start; i < end; ++i){
-	    	for (int j = 0; j < ncols; ++j) {
-	    		// depending on the location of the cell, we choose to lock or not to lock
-	    		if (i <= start + 1) {
-	    			//lock upper boundary
+	  // 	for (int i = start; i < end; ++i){
+	  //   	for (int j = 0; j < ncols; ++j) {
+	  //   		// depending on the location of the cell, we choose to lock or not to lock
+	  //   		if (i <= start + 1) {
+	  //   			//lock upper boundary
 	    			
+			// 			  pthread_mutex_lock(boundary_locks_upper);
+			// 				do_cell(outboard, inboard, i, j, nrows);
 
-						  pthread_mutex_lock(&boundary_locks[ith_slice]);
-							do_cell(outboard, inboard, i, j, nrows);
+		 //    			pthread_mutex_unlock(boundary_locks_upper);
 
-		    			pthread_mutex_unlock(&boundary_locks[ith_slice]);
-
-	    		} 
-	    		else if (i < end - 1) {
-	    			// no need for lock
-					do_cell(outboard, inboard, i, j, nrows);
-	    		}
-	    		else {
-	    			//lock lower boundary
+	  //   		} 
+	  //   		else if (i < end - 1) {
+	  //   			// no need for lock
+			// 		do_cell(outboard, inboard, i, j, nrows);
+	  //   		}
+	  //   		else {
+	  //   			//lock lower boundary
 	    			
-		    			pthread_mutex_lock(boundary_locks_lower);
-						  do_cell(outboard, inboard, i, j, nrows);
-		    			pthread_mutex_unlock(boundary_locks_lower);
+		 //    			pthread_mutex_lock(boundary_locks_lower);
+			// 			  do_cell(outboard, inboard, i, j, nrows);
+		 //    			pthread_mutex_unlock(boundary_locks_lower);
 	    
-	    			
-	    		}
-	    	}
-	  }
-		
+	  //   		}
+	  //   	}
+	  // }
+		int i,j;
+     for (j = 0; j < ncols; j++) {
+        
+         for (i = start; i < start + 2; i++) {
+           // lock upper 
+           pthread_mutex_lock(boundary_locks_upper);
+             do_cell(outboard, inboard, i, j, nrows);
+             pthread_mutex_unlock(boundary_locks_upper);
+
+         }
+           for (i = start + 2; i < end - 2; i++) {
+             do_cell(outboard, inboard, i, j, nrows);
+   
+            }
+         for (i = end - 2; i < end; i++) {
+           // lock lower
+           pthread_mutex_lock(boundary_locks_lower);
+           do_cell(outboard, inboard, i, j, nrows);
+           pthread_mutex_unlock(boundary_locks_lower);
+
+         }
+        }
 	  pthread_barrier_wait(barrier);
 	  memcpy(inboard + start * ncols, outboard + start * ncols, slice_size * ncols * sizeof (char));
 	  
