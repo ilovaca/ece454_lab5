@@ -90,33 +90,7 @@ void* worker_fuction_by_rows_encoding(void *args) {
 	  int end = start + slice_size;
 
 	for  (int curgen = 0; curgen < gens_max; ++curgen) {
-	  // 	for (int i = start; i < end; ++i){
-	  //   	for (int j = 0; j < ncols; ++j) {
-	  //   		// depending on the location of the cell, we choose to lock or not to lock
-	  //   		if (i <= start + 1) {
-	  //   			//lock upper boundary
-	    			
-			// 			  pthread_mutex_lock(boundary_locks_upper);
-			// 				do_cell(outboard, inboard, i, j, nrows);
-
-		 //    			pthread_mutex_unlock(boundary_locks_upper);
-
-	  //   		} 
-	  //   		else if (i < end - 1) {
-	  //   			// no need for lock
-			// 		do_cell(outboard, inboard, i, j, nrows);
-	  //   		}
-	  //   		else {
-	  //   			//lock lower boundary
-	    			
-		 //    			pthread_mutex_lock(boundary_locks_lower);
-			// 			  do_cell(outboard, inboard, i, j, nrows);
-		 //    			pthread_mutex_unlock(boundary_locks_lower);
-	    
-	  //   		}
-	  //   	}
-	  // }
-		int i,j;
+    int i,j;
      for (j = 0; j < ncols; j++) {
         
          for (i = start; i < start + 2; i++) {
@@ -214,7 +188,7 @@ void do_cell(char *outboard, char *inboard, int i, int j, const int size) {
     int inorth, isouth, jwest, jeast;
     char cell = BOARD(inboard, i, j);
     if (ALIVE(cell)) {
-		if(TOKILL(cell)) {
+		  if(TOKILL(cell)) {
 			// if this cell is alive and it should die, then we need to
 			// do two things: mark it alive....
 			    KILL(BOARD(outboard, i, j));
@@ -234,27 +208,27 @@ void do_cell(char *outboard, char *inboard, int i, int j, const int size) {
 			    N_DEC(outboard, isouth, j);
 			    N_DEC(outboard, isouth, jeast);
 			
-		}
+		  }
     }
     else {
     	// this cell is dead
-		if(TOSPAWN(cell)) {
-			
-		    SPAWN(BOARD(outboard, i, j));
+  		if(TOSPAWN(cell)) {
+  			
+  		    SPAWN(BOARD(outboard, i, j));
 
-		    jwest = mod(j-1, size);
-		    jeast = mod(j+1, size);
-		    inorth = mod(i-1, size);
-		    isouth = mod(i+1, size);
+  		    jwest = mod(j-1, size);
+  		    jeast = mod(j+1, size);
+  		    inorth = mod(i-1, size);
+  		    isouth = mod(i+1, size);
 
-		    N_INC(outboard, inorth, jwest);
-		    N_INC(outboard, inorth, j);
-		    N_INC(outboard, inorth, jeast);
-		    N_INC(outboard, i, jwest);
-		    N_INC(outboard, i, jeast);
-		    N_INC(outboard, isouth, jwest);
-		    N_INC(outboard, isouth, j);
-		    N_INC(outboard, isouth, jeast);
-		}
+  		    N_INC(outboard, inorth, jwest);
+  		    N_INC(outboard, inorth, j);
+  		    N_INC(outboard, inorth, jeast);
+  		    N_INC(outboard, i, jwest);
+  		    N_INC(outboard, i, jeast);
+  		    N_INC(outboard, isouth, jwest);
+  		    N_INC(outboard, isouth, j);
+  		    N_INC(outboard, isouth, jeast);
+  		}
     }
 }
