@@ -28,7 +28,7 @@ void do_cell(char *outboard, char *inboard, int i, int j, const int LDA);
 
 void board_init(char *board, int size);
 
-// apply encoding to the board
+// Function to apply encoding to the board
 // Behavior: does not alter the content of the inboard. Only the outboard is
 // updated with encoding ==> so at the end we copy the outboard to the inboard
 void preprocessing_board(char *inboard, char *outboard, int size) {
@@ -65,6 +65,9 @@ void preprocessing_board(char *inboard, char *outboard, int size) {
     memmove(outboard, inboard, size * size * sizeof(char));
 }
 
+/**
+ * Function to revert the encoding that we applied in preprocessing stage.
+ * */
 inline void postprocessing_board(char *board, int nrows, int ncols) {
     int total_size = nrows * ncols;
     for (int i = 0; i < total_size; ++i) {
@@ -72,7 +75,9 @@ inline void postprocessing_board(char *board, int nrows, int ncols) {
     }
 }
 
-
+/**
+ * Worker function to be invoked by threads
+ * */
 void *worker_fuction_by_rows_encoding(void *args) {
     struct thread_argument_t *arg = (struct thread_argument_t *) args;
     char *outboard = arg->outboard;
@@ -113,6 +118,8 @@ void *worker_fuction_by_rows_encoding(void *args) {
             }
         }
         pthread_barrier_wait(barrier);
+        // always make sure that at the start of every generation we have inboard and outboard to be
+        // exactly the same
         memcpy(inboard + start * ncols, outboard + start * ncols, slice_size * ncols * sizeof(char));
 
         pthread_barrier_wait(barrier);
@@ -141,13 +148,15 @@ game_of_life(char *outboard,
     }
 }
 
-
+/**
+ * The main part of parallel version of GOL
+ * */
 char *parallel_game_of_life(char *outboard,
                             char *inboard,
                             const int nrows,
                             const int ncols,
                             const int gens_max) {
-
+    // Synchronization primitives
     pthread_t worker_threads[NUM_THREADS];
 
     pthread_mutex_t boundary_locks[NUM_THREADS];
@@ -158,10 +167,11 @@ char *parallel_game_of_life(char *outboard,
     pthread_barrier_init(&barrier, NULL, NUM_THREADS);
 
     LDA = nrows;
+    // apply encoding to the board
     preprocessing_board(inboard, outboard, nrows);
 
     struct thread_argument_t args[NUM_THREADS];
-
+    // create and start threads
     for (int i = 0; i < NUM_THREADS; ++i) {
         args[i].outboard = outboard;
         args[i].inboard = inboard;
@@ -173,13 +183,14 @@ char *parallel_game_of_life(char *outboard,
         args[i].boundary_locks = boundary_locks;
         pthread_create(&worker_threads[i], NULL, worker_fuction_by_rows_encoding, &args[i]);
     }
-
+    //join threads before return
     for (int i = 0; i < NUM_THREADS; ++i) {
         pthread_join(worker_threads[i], NULL);
     }
 
     // reverse the board to original encoding
     postprocessing_board(outboard, LDA, LDA);
+
     return outboard;
 }
 

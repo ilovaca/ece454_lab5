@@ -47,7 +47,9 @@ char *
                                 const int ncols,
                                 const int gens_max);
 
-
+/**
+ * Parallel version of GOL
+ * */
 char *
         parallel_game_of_life(char *outboard,
                               char *inboard,
