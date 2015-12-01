@@ -1,6 +1,8 @@
 #ifndef _life_h
 #define _life_h
+
 #include <pthread.h>
+
 /**
  * Given the initial board state in inboard and the board dimensions
  * nrows by ncols, evolve the board state gens_max times by alternating
@@ -9,7 +11,7 @@
  * inboard (but you don't know which).
  */
 
- int LDA;
+int LDA;
 #define BOARD(__board, __i, __j)  (__board[(__i) + LDA*(__j)])
 #define NUM_THREADS 8
 
@@ -52,7 +54,7 @@ char *
                               const int nrows,
                               const int ncols,
                               const int gens_max
-                              );
+);
 
 
 #endif /* _life_h */

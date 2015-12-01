@@ -11,7 +11,7 @@
  * copying values.
  */
 
-char*
+char *
 sequential_game_of_life(char *outboard,
                         char *inboard,
                         const int nrows,
