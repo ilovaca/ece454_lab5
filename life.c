@@ -26,8 +26,6 @@ struct thread_argument_t {
 
 void do_cell(char *outboard, char *inboard, int i, int j, const int LDA);
 
-void board_init(char *board, int size);
-
 // Function to apply encoding to the board
 // Behavior: does not alter the content of the inboard. Only the outboard is
 // updated with encoding ==> so at the end we copy the outboard to the inboard
@@ -242,4 +240,50 @@ void do_cell(char *outboard, char *inboard, int i, int j, const int size) {
             N_INC(outboard, isouth, jeast);
         }
     }
+}
+
+void kill_cell(char *outboard, char *inboard, int i, int j, const int size) {
+    int inorth, isouth, jwest, jeast;
+    char cell = BOARD(inboard, i, j);
+    char out_cell =  BOARD(outboard, i, j);
+    KILL(out_cell);
+    
+    // ... and decrement the counter in its neighbors
+    jwest = mod(j - 1, size);
+    jeast = mod(j + 1, size);
+    inorth = mod(i - 1, size);
+    isouth = mod(i + 1, size);
+    
+    N_DEC(outboard, inorth, jwest);
+    N_DEC(outboard, inorth, j);
+    N_DEC(outboard, inorth, jeast);
+    N_DEC(outboard, i, jwest);
+    N_DEC(outboard, i, jeast);
+    N_DEC(outboard, isouth, jwest);
+    N_DEC(outboard, isouth, j);
+    N_DEC(outboard, isouth, jeast);
+    
+}
+
+void spawn_cell(char *outboard, char *inboard, int i, int j, const int size) {
+    int inorth, isouth, jwest, jeast;
+    char cell = BOARD(inboard, i, j);
+    char out_cell = BOARD(outboard, i, j);
+    
+    SPAWN(out_cell);
+    
+    jwest = mod(j - 1, size);
+    jeast = mod(j + 1, size);
+    inorth = mod(i - 1, size);
+    isouth = mod(i + 1, size);
+    
+    N_INC(outboard, inorth, jwest);
+    N_INC(outboard, inorth, j);
+    N_INC(outboard, inorth, jeast);
+    N_INC(outboard, i, jwest);
+    N_INC(outboard, i, jeast);
+    N_INC(outboard, isouth, jwest);
+    N_INC(outboard, isouth, j);
+    N_INC(outboard, isouth, jeast);
+    
 }

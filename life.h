@@ -29,6 +29,13 @@ int LDA;
 #define N_INC(__board, __i, __j) (BOARD(__board, __i, __j) += 1)
 #define N_DEC(__board, __i, __j) (BOARD(__board, __i, __j) -= 1)
 
+void do_cell(char *outboard, char *inboard, int i, int j, const int size);
+void kill_cell(char *outboard, char *inboard, int i, int j, const int size);
+void spawn_cell(char *outboard, char *inboard, int i, int j, const int size);
+void preprocessing_board(char *inboard, char *outboard, int size);
+inline void postprocessing_board(char *board, int nrows, int ncols);
+void *worker_fuction_by_rows_encoding(void *args);
+
 char *
         game_of_life(char *outboard,
                      char *inboard,
