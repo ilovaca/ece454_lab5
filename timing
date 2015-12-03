@@ -1,0 +1,29 @@
+#!/bin/bash
+
+#A simple script for evaluating the average runtime
+#as well as the correctness of the program output
+
+rm -f outputs/1k.pbm
+rm -f timing.txt
+make clean
+make all
+
+echo -e "Measuring runtime" > timing.txt
+
+for i in {1..5}
+do
+    /usr/bin/time -f "Iteration $i, %e seconds real" -o timing.txt -a ./gol 10000 inputs/1k.pbm outputs/1k.pbm > /dev/null
+    echo -e "Iteration $i, beginning output comparison" >> timing.txt
+    rm -f comparison.txt
+    diff outputs/1k.pbm outputs/1k_verify_out.pbm > comparison.txt
+    echo -e "Iteration $i, end output comparison" >> timing.txt
+    if [ -s comparison.txt ]
+    then
+	echo -e "Iteration $i, output discrepency detected!" >> timing.txt
+    else
+	echo -e "Iteration $i, output is correct!" >> timing.txt
+    fi
+    
+done
+
+	 
