@@ -24,14 +24,14 @@ int LDA;
 #define ALIVE(c) ((c >> 4) & 1)
 #define SPAWN(c) (c |= (1 << (4)))
 #define KILL(c) (c &= ~(1 << (4)))
-#define TOKILL(c) ((c < (char)0x12 || cell > (char)0x13))
+#define TOKILL(c) ((c < (char)0x12 || c > (char)0x13))
 #define TOSPAWN(c) (c == (char)0x3)
 #define N_INC(__board, __i, __j) (BOARD(__board, __i, __j) += 1)
 #define N_DEC(__board, __i, __j) (BOARD(__board, __i, __j) -= 1)
 
 void do_cell(char *outboard, char *inboard, int i, int j, const int size);
-void kill_cell(char *outboard, char *inboard, int i, int j, const int size);
-void spawn_cell(char *outboard, char *inboard, int i, int j, const int size);
+void kill_cell(char *outboard, int i, int j, const int size);
+void spawn_cell(char *outboard, int i, int j, const int size);
 void preprocessing_board(char *inboard, char *outboard, int size);
 inline void postprocessing_board(char *board, int nrows, int ncols);
 void *worker_fuction_by_rows_encoding(void *args);

@@ -24,7 +24,6 @@ struct thread_argument_t {
     pthread_mutex_t *boundary_locks;
 };
 
-void do_cell(char *outboard, char *inboard, int i, int j, const int LDA);
 
 // Function to apply encoding to the board
 // Behavior: does not alter the content of the inboard. Only the outboard is
@@ -98,21 +97,59 @@ void *worker_fuction_by_rows_encoding(void *args) {
 
             for (i = start; i < start + 2; i++) {
                 // lock upper
-                pthread_mutex_lock(boundary_locks_upper);
-                do_cell(outboard, inboard, i, j, nrows);
-                pthread_mutex_unlock(boundary_locks_upper);
-
+                /*pthread_mutex_lock(boundary_locks_upper);
+		do_cell(outboard, inboard, i, j, nrows);
+		pthread_mutex_unlock(boundary_locks_upper);
+		*/
+		
+		//pthread_mutex_lock(boundary_locks_upper);
+		if(ALIVE(BOARD(inboard, i, j))) {
+		    if(TOKILL(BOARD(inboard, i, j))) {
+			pthread_mutex_lock(boundary_locks_upper);
+			kill_cell(outboard, i, j, nrows);
+			pthread_mutex_unlock(boundary_locks_upper);
+		    }
+		}
+		else {
+		    if(TOSPAWN(BOARD(inboard, i, j))) {
+			pthread_mutex_lock(boundary_locks_upper);
+			spawn_cell(outboard, i, j, nrows);
+			pthread_mutex_unlock(boundary_locks_upper);
+			
+		    }
+		}
+		//pthread_mutex_unlock(boundary_locks_upper);
+		
             }
             for (i = start + 2; i < end - 2; i++) {
                 do_cell(outboard, inboard, i, j, nrows);
-
+		
             }
             for (i = end - 2; i < end; i++) {
                 // lock lower
-                pthread_mutex_lock(boundary_locks_lower);
+		/*pthread_mutex_lock(boundary_locks_lower);
                 do_cell(outboard, inboard, i, j, nrows);
                 pthread_mutex_unlock(boundary_locks_lower);
-
+		*/
+		
+		//pthread_mutex_lock(boundary_locks_lower);
+		if(ALIVE(BOARD(inboard, i, j))) {
+		    if(TOKILL(BOARD(inboard, i, j))) {
+			pthread_mutex_lock(boundary_locks_lower);
+			kill_cell(outboard, i, j, nrows);
+			pthread_mutex_unlock(boundary_locks_lower);
+		    }
+		}
+		else {
+		    if(TOSPAWN(BOARD(inboard, i, j))) {
+			pthread_mutex_lock(boundary_locks_lower);
+			spawn_cell(outboard, i, j, nrows);
+			pthread_mutex_unlock(boundary_locks_lower);
+			
+		    }
+		}
+		//pthread_mutex_unlock(boundary_locks_lower);
+		
             }
         }
         pthread_barrier_wait(barrier);
@@ -242,11 +279,11 @@ void do_cell(char *outboard, char *inboard, int i, int j, const int size) {
     }
 }
 
-void kill_cell(char *outboard, char *inboard, int i, int j, const int size) {
+void kill_cell(char *outboard, int i, int j, const int size) {
     int inorth, isouth, jwest, jeast;
-    char cell = BOARD(inboard, i, j);
-    char out_cell =  BOARD(outboard, i, j);
-    KILL(out_cell);
+    //char out_cell =  BOARD(outboard, i, j);
+    
+    KILL(BOARD(outboard, i, j));
     
     // ... and decrement the counter in its neighbors
     jwest = mod(j - 1, size);
@@ -265,12 +302,11 @@ void kill_cell(char *outboard, char *inboard, int i, int j, const int size) {
     
 }
 
-void spawn_cell(char *outboard, char *inboard, int i, int j, const int size) {
+void spawn_cell(char *outboard, int i, int j, const int size) {
     int inorth, isouth, jwest, jeast;
-    char cell = BOARD(inboard, i, j);
-    char out_cell = BOARD(outboard, i, j);
+    //char out_cell = BOARD(outboard, i, j);
     
-    SPAWN(out_cell);
+    SPAWN(BOARD(outboard, i, j));
     
     jwest = mod(j - 1, size);
     jeast = mod(j + 1, size);
