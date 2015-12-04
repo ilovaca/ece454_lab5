@@ -13,6 +13,9 @@
 /*****************************************************************************
  * Helper function definitions
  ****************************************************************************/
+
+//This data structure contains all arguments needed
+//by the worker function.
 struct thread_argument_t {
     char *outboard;
     char *inboard;
@@ -25,16 +28,16 @@ struct thread_argument_t {
 };
 
 
-// Function to apply encoding to the board
+// Function to apply our encoding format to the board
 // Behavior: does not alter the content of the inboard. Only the outboard is
 // updated with encoding ==> so at the end we copy the outboard to the inboard
 void preprocessing_board(char *inboard, char *outboard, int size) {
     char *board = inboard;
     int i, j, total_size = size * size;
     for (i = 0; i < total_size; i++) {
-        if (board[i] == 1) {
-            board[i] = 0;
-            SPAWN(board[i]);
+        if (board[i] == 1) {//if cell is alive
+            board[i] = 0;//clear the cell first
+            SPAWN(board[i]);//mark the cell as live in our format
         }
     }
 
@@ -42,6 +45,8 @@ void preprocessing_board(char *inboard, char *outboard, int size) {
     for (i = 0; i < size; i++) {
         for (j = 0; j < size; j++) {
             if (ALIVE(BOARD(board, i, j))) {
+
+		//Updates its neighbours with increased live cell count
                 jwest = mod(j - 1, size);
                 jeast = mod(j + 1, size);
                 inorth = mod(i - 1, size);
@@ -59,6 +64,7 @@ void preprocessing_board(char *inboard, char *outboard, int size) {
         }
     }
 
+    //copy inboard to outboard to make both have the same content
     memmove(outboard, inboard, size * size * sizeof(char));
 }
 
@@ -95,14 +101,12 @@ void *worker_fuction_by_rows_encoding(void *args) {
         int i, j;
         for (j = 0; j < ncols; j++) {
 
+	    /*The two columns near the boundary of the slices assigned
+	      to different worker threads needs to be locked
+	      in order to avoid race conditions.
+	    */	    
             for (i = start; i < start + 2; i++) {
-                // lock upper
-                /*pthread_mutex_lock(boundary_locks_upper);
-		do_cell(outboard, inboard, i, j, nrows);
-		pthread_mutex_unlock(boundary_locks_upper);
-		*/
-		
-		//pthread_mutex_lock(boundary_locks_upper);
+		//lock upper boundary
 		if(ALIVE(BOARD(inboard, i, j))) {
 		    if(TOKILL(BOARD(inboard, i, j))) {
 			pthread_mutex_lock(boundary_locks_upper);
@@ -118,21 +122,20 @@ void *worker_fuction_by_rows_encoding(void *args) {
 			
 		    }
 		}
-		//pthread_mutex_unlock(boundary_locks_upper);
 		
             }
+
+	    /*As for the main body, since any changes are made on the
+	      outboard, the inboard remains read-only and thus there
+	      are no worries about race conditions.
+	     */
             for (i = start + 2; i < end - 2; i++) {
                 do_cell(outboard, inboard, i, j, nrows);
 		
             }
+	    
             for (i = end - 2; i < end; i++) {
-                // lock lower
-		/*pthread_mutex_lock(boundary_locks_lower);
-                do_cell(outboard, inboard, i, j, nrows);
-                pthread_mutex_unlock(boundary_locks_lower);
-		*/
-		
-		//pthread_mutex_lock(boundary_locks_lower);
+                // lock lower boundary
 		if(ALIVE(BOARD(inboard, i, j))) {
 		    if(TOKILL(BOARD(inboard, i, j))) {
 			pthread_mutex_lock(boundary_locks_lower);
@@ -148,7 +151,6 @@ void *worker_fuction_by_rows_encoding(void *args) {
 			
 		    }
 		}
-		//pthread_mutex_unlock(boundary_locks_lower);
 		
             }
         }
@@ -175,7 +177,9 @@ game_of_life(char *outboard,
     if (nrows < 32) {
         return sequential_game_of_life(outboard, inboard, nrows, ncols, gens_max);
     }
-    else if (nrows > 10000) {
+    else if ((nrows > 10000) || (ncols > 10000)) {
+	//if the size exceeds the limit, a null pointer is returned to gol
+	//which will handle the null condition
         return NULL;
     }
     else {

@@ -133,6 +133,10 @@ main(int argc, char *argv[]) {
     final_board = game_of_life(outboard, inboard, nrows, ncols, gens_max);
 
     if (final_board == NULL) {
+	/*If the game of life returns a null,
+	  then the given board size must have been too large
+	  and the game will be aborted
+	 */
         fprintf(stderr, "Boardsize too large! Aborting game of life...\n");
         exit(EXIT_FAILURE);
     }
